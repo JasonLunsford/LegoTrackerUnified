@@ -1,0 +1,25 @@
+version: "3.8"
+
+services:
+  api:
+    build: ./api
+    restart: always
+    ports:
+      - "8181:8181"
+    working_dir: /api
+    volumes:
+      - ./api:/api
+    depends_on:
+      - db
+    container_name: lego_tracker_api
+  db:
+    image: mongo:4.4.2
+    restart: always
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodata:/data/db
+    container_name: lego_tracker_mongodb
+
+volumes:
+  mongodata:

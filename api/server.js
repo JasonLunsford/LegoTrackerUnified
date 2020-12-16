@@ -43,7 +43,7 @@ require('./routes/user.routes')(app);
 
 // Global failure route
 app.all('/*', (req, res) => {
-	res.status(500).send({status: 500, error: 'Invalid endpoint'});
+	res.status(500).send({status: 500, error: 'Invalid endpoint you sexy man'});
 });
 
 // Catch random UnhandledRejection

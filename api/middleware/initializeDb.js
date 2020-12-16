@@ -26,7 +26,7 @@ exports.initializeDb = async () => {
             new User({
                 username: "JasonLunsford",
                 email:    "miyamota@yahoo.com",
-                password: bcrypt.hashSync('secret', 10),
+                password: bcrypt.hashSync('secret69', 8),
                 roles:    [userRole._id, adminRole._id]
             }).save(err => {
                 if (err) {
@@ -41,7 +41,7 @@ exports.initializeDb = async () => {
             new User({
                 username: "TrianKoutoufaris",
                 email:    "thirtyleaves@gmail.com",
-                password: bcrypt.hashSync('secret', 10),
+                password: bcrypt.hashSync('secret69', 8),
                 roles:    [userRole._id, adminRole._id]
             }).save(err => {
                 if (err) {

@@ -7,4 +7,4 @@ COPY . /api
 
 EXPOSE 8181
 USER node
-CMD ["node", "server.js"]
+CMD ["npm", "start"]

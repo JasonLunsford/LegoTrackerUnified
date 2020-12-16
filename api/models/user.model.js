@@ -25,6 +25,10 @@ const User = mongoose.model(
         required:  true,
         minLength: 8
       },
+      accessToken: {
+        type:     String,
+        required: false
+      },
       roles: [
           {
               type: mongoose.Schema.Types.ObjectId,

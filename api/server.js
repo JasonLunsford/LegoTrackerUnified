@@ -2,6 +2,9 @@ const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
 
+// Pull in environmental variables, store in process.env
+require('dotenv').config();
+
 // Enable express and CORS
 const app = express();
 

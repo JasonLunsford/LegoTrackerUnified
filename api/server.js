@@ -39,7 +39,10 @@ db.mongoose
   });
 
 require('./routes/auth.routes')(app);
-require('./routes/user.routes')(app);
+require('./routes/pieces.routes')(app);
+require('./routes/sets.routes')(app);
+require('./routes/userPieces.routes')(app);
+require('./routes/userSets.routes')(app);
 
 // Global failure route
 app.all('/*', (req, res) => {

@@ -1,6 +1,17 @@
 version: "3.8"
 
 services:
+  client:
+    build: ./client
+    restart: always
+    ports:
+      - "8080:8080"
+    working_dir: /client
+    volumes:
+      - ./client:/client
+    depends_on:
+      - db
+    container_name: lego_tracker_client
   api:
     build: ./api
     restart: always

@@ -1,7 +1,8 @@
 {
   "name": "LEGO_Tracker_API",
-  "version": "1.0.0",
-  "description": "Backend support for LEGO_Tracker",
+  "version": "0.0.1",
+  "description": "LEGO Tracker API layer, running on Node",
+  "private": true,
   "main": "server.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",

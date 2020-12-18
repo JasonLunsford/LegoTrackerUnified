@@ -1,6 +1,7 @@
 const db = require('../models');
 
 const UserSets = db.userSets;
+const UserPieces = db.userPieces;
 
 exports.allUserSets = (req, res) => {
   res.status(200).send({ message: "Will return all LEGO sets in a User's Sets collection." });
@@ -8,6 +9,10 @@ exports.allUserSets = (req, res) => {
 
 exports.singleUserSet = (req, res) => {
   res.status(200).send({ message: "Will return a single LEGO set from a User's Sets collection." });
+};
+
+exports.piecesFilteredBySet = (req, res) => {
+  res.status(200).send({ message: "Will return pieces filtered by a specific Set." });
 };
 
 exports.saveUserSet = (req, res) => {

@@ -1,4 +1,3 @@
-const axios = require('axios');
 const template = require('url-template');
 const _ = require('lodash');
 
@@ -13,6 +12,22 @@ const RebrickSetsUrl = template.parse('/sets/{setNumber}/{?key}');
 const RebrickSetPiecesUrl = template.parse('/sets/{setNumber}/parts{?key}');
 const RebrickThemesUrl = template.parse('/themes/{id}/{?key}');
 
+const attachOne = setNumber => {
+    if (setNumber.includes('-1')) return setNumber;
+
+    return `${setNumber}-1`;
+};
+
+const findBaseNumber = setNumber => {
+    if (setNumber.includes('-')) {
+        const pos = setNumber.indexOf('-');
+
+        return setNumber.slice(0, pos);
+    }
+
+    return setNumber;
+};
+
 exports.allSets = async (req, res) => {
     const sets = await Sets.find();
 
@@ -21,12 +36,17 @@ exports.allSets = async (req, res) => {
 
 exports.singleSet = async (req, res) => {
     if (!req.params.id) {
-        res.status(200).send({ message: "Missing Set Id." });
+        res.status(204).send({ message: "Missing Set Number.", data: [] });
 
         return;
     }
 
-    const query = { $or : [ { baseSetNumber: req.params.id }, { boid: req.params.id } ] };
+    const query = {
+        $or : [
+            { boid: req.params.id },
+            { baseSetNumber: findBaseNumber(req.params.id) }
+        ]
+    };
 
     const set = await Sets.find(query);
 
@@ -35,29 +55,21 @@ exports.singleSet = async (req, res) => {
 
 exports.saveSet = async (req, res) => {
     if (!req.body.setNumber) {
-        res.status(200).send({ message: "Missing Set Number." });
+        res.status(204).send({ message: "Missing Set Number.", data: [] });
 
         return;
     }
 
-    const attachOne = setNumber => {
-        if (setNumber.includes('-1')) return setNumber;
-
-        return `${setNumber}-1`;
-    };
-
     const query = {
         $or : [
-            { baseSetNumber: req.body.setNumber },
-            { baseSetNumber: req.body.setNumber+'-1' },
-            { baseSetNumber: req.body.setNumber+'-2' }
+            { baseSetNumber: findBaseNumber(req.body.setNumber) },
         ]
     };
 
     const setTest = await Sets.find(query);
 
     if (setTest.length) {
-        res.status(200).send({ message: "Set already entered." });
+        res.status(204).send({ message: "Set already entered.", data: [] });
 
         return;
     }
@@ -78,9 +90,7 @@ exports.saveSet = async (req, res) => {
     const boid = _.get(boBoidResult, 'data.boids[0]', '');
 
     if (_.isEmpty(boid)) {
-        res.status(500).send({
-            message: `Cannot identify set, try another set number.`
-        });
+        res.status(503).send({ message: 'Cannot identify set.' });
 
         return;
     }
@@ -121,13 +131,11 @@ exports.saveSet = async (req, res) => {
 
     set.save((err, item) => {
         if (err) {
-            res.status(500).send({ message: err });
+            res.status(503).send({ message: err });
 
             return;
         }
 
-        res.status(200).send({
-            message: `Set ${req.body.setNumber} saved successfully.`
-        });
+        res.status(200).send({ message: `Set ${req.body.setNumber} saved successfully.`, data: setData });
     });
 };

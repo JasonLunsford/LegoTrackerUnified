@@ -18,7 +18,7 @@ exports.signup = async (req, res) => {
 
   user.save((err, user) => {
     if (err) {
-      res.status(500).send({ message: err });
+      res.status(503).send({ message: err });
       return;
     }
 
@@ -29,36 +29,36 @@ exports.signup = async (req, res) => {
         },
         (err, roles) => {
           if (err) {
-            res.status(500).send({ message: err });
+            res.status(503).send({ message: err });
             return;
           }
 
           user.roles = roles.map(role => role._id);
           user.save(err => {
             if (err) {
-              res.status(500).send({ message: err });
+              res.status(503).send({ message: err });
               return;
             }
 
-            res.send({ message: "User was registered successfully!" });
+            res.status(200).send({ message: "User was registered successfully!" });
           });
         }
       );
     } else {
       Role.findOne({ name: "user" }, (err, role) => {
         if (err) {
-          res.status(500).send({ message: err });
+          res.status(503).send({ message: err });
           return;
         }
 
         user.roles = [role._id];
         user.save(err => {
           if (err) {
-            res.status(500).send({ message: err });
+            res.status(503).send({ message: err });
             return;
           }
 
-          res.send({ message: "User was registered successfully!" });
+          res.status(200).send({ message: "User was registered successfully!" });
         });
       });
     }
@@ -72,12 +72,12 @@ exports.signin = (req, res) => {
   .populate("roles", "-__v")
   .exec((err, user) => {
     if (err) {
-      res.status(500).send({ message: err });
+      res.status(503).send({ message: err });
       return;
     }
 
     if (!user) {
-      return res.status(404).send({ message: "User Not found." });
+      return res.status(401).send({ message: "Unauthorized." });
     }
 
     let passwordIsValid = bcrypt.compareSync(
@@ -86,10 +86,7 @@ exports.signin = (req, res) => {
     );
 
     if (!passwordIsValid) {
-      return res.status(401).send({
-        accessToken: null,
-        message: "Invalid Password!"
-      });
+      return res.status(401).send({ message: "Unauthorized." });
     }
 
     let token = jwt.sign({ id: user._id }, config.secret, {
@@ -113,12 +110,14 @@ exports.signin = (req, res) => {
     )
     .exec();
 
-    res.status(200).send({
+    const data = {
       username: user.username,
       email: user.email,
       roles: authorities,
       accessToken: token
-    });
+    }
+
+    res.status(200).send({ message: "Welcome to LEGO Tracker.", data });
   });
 };
 
@@ -128,7 +127,7 @@ exports.signout = (req, res) => {
   })
   .exec((err, user) => {
     if (err) {
-      res.status(500).send({ message: err });
+      res.status(503).send({ message: err });
       return;
     }
 
@@ -143,6 +142,6 @@ exports.signout = (req, res) => {
     )
     .exec();
 
-    res.status(200).send({status: 200, message: 'Signed Out'});
+    res.status(200).send({ message: 'Signed Out'});
   });
 };

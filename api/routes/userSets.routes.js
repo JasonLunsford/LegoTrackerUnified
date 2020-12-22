@@ -17,4 +17,8 @@ module.exports = function(app) {
     app.get('/api/user/sets/:id/pieces', [authJwt.verifyToken], controller.piecesFilteredBySet);
 
     app.post('/api/user/sets', [authJwt.verifyToken], controller.saveUserSet);
+
+    app.put('/api/user/sets/:id', [authJwt.verifyToken], controller.updateUserSet);
+
+    app.delete('/api/user/sets/:id', [authJwt.verifyToken], controller.deleteUserSet);
 };

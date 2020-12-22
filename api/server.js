@@ -16,7 +16,7 @@ app.use(cors(corsOptions));
 
 // Parse incoming query strings and POST messages, convert into JSON
 app.use(bodyParser.urlencoded({
-	extended: true
+  extended: true
 }));
 app.use(bodyParser.json());
 

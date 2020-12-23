@@ -248,30 +248,41 @@ exports.saveUserSet = async (req, res) => {
             masterPieceId: masterPiece._id,
             userId:        currentUser._id,
             count:         _.get(rawRebrickPieces[i], 'quantity', 0) || 0,
-            pricePaid:     0,
+            pricePaid:     '0',
             notes:         ''
         });
     }
+
+    // const lookup = rawRebrickPieces.reduce((a, e) => {
+    //   a[e.part.part_num] = ++a[e.part.part_num] || 0;
+    //   return a;
+    // }, {});
+
+    // console.log(rawRebrickPieces.filter(e => lookup[e.part.part_num]));
 
     // Grab all pieces from the User Pieces collection
     const userPiecesData = await UserPieces.find({ userId: currentUser._id });
 
     if (userPiecesData.length) {
-        // Loop thru the pieces data and user pieces collection to either update the piece count
-        // in the user's piece collection, or save the new piece into the user's piece collection
-
-        // THIS CODE IS GENERATING CRAZY DUPLICATES - FIND THE DEFECT AND FIX
+        // Loop thru the pieces data and user pieces collection to update the piece count
+        // in the user's piece collection
         for (let i = 0; i < piecesData.length; i++) {
             for (let j = 0; j < userPiecesData.length; j++) {
                 if (piecesData[i].masterPieceId === userPiecesData[j].masterPieceId) {
                     const count = userPiecesData[j].count + piecesData[i].count;
 
                     await UserPieces.findByIdAndUpdate(userPiecesData[j]._id, {count});
-                } else {
-                    const newPiece = new UserPieces({ ...piecesData[i] });
-
-                    await newPiece.save();
                 }
+            }
+        }
+
+        for (let i = 0; i < piecesData.length; i++) {
+            const targetPiece = await UserPieces.findOne({ masterPieceId: piecesData[i].masterPieceId });
+
+            if (!targetPiece) {
+                const newPiece = new UserPieces({ ...piecesData[i] });
+
+                await newPiece.save();
             }
         }
     } else {

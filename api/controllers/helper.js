@@ -65,7 +65,7 @@ exports.addMasterSet = async setNumber => {
     );
 
     setData.boid = boid;
-    setData.price = _.get(boSetDataResult, 'data.cheapest_gbp');
+    setData.price = _.get(boSetDataResult, 'data.cheapest_gbp') || '0';
 
     // Step 3: Now let's get more useful Set information from Rebrickable
     const rebrickSetData = await apiBase.rebrickV3.get(
@@ -108,7 +108,7 @@ exports.addMasterSet = async setNumber => {
             boid:           _.get(piece, 'part.external_ids.BrickOwl[0]', ''),
             color:          _.get(piece, 'color.name', ''),
             rebrickPartNum: _.get(piece, 'part.part_num', ''),
-            price:          0
+            price:          '0'
         });
     });
 

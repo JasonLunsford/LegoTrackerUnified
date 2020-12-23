@@ -108,32 +108,43 @@ exports.addMasterSet = async setNumber => {
             boid:           _.get(piece, 'part.external_ids.BrickOwl[0]', ''),
             color:          _.get(piece, 'color.name', ''),
             rebrickPartNum: _.get(piece, 'part.part_num', ''),
+            price:          0
         });
     });
+
+    // Remove any duplicates
+    const uniquePiecesData = piecesData.reduce((unique, o) => {
+        if (!unique.some(obj => obj.rebrickPartNum === o.rebrickPartNum)) {
+          unique.push(o);
+        }
+
+        return unique;
+    },[]);
 
     // Grab all pieces from the Master Pieces collection
     const MasterPieces = await Pieces.find();
     const newPieces = [];
 
     // Loop thru each piece belonging to the Set, if piece does not exist in Master Pieces collection
-    // push it into the newPieces collection, otherwise grab the mongoDb document ID and push that
+    // save it immediately, otherwise grab the mongoDb document ID and push that
     // into the setData.pieces collection.
-    piecesData.forEach(piece => {
-        const masterPiece = MasterPieces.find(item => item.rebrickPartNum === piece.rebrickPartNum);
+    for (let i = 0; i < uniquePiecesData.length; i++) {
+        const masterPiece = MasterPieces.find(item => item.rebrickPartNum === uniquePiecesData[i].rebrickPartNum);
 
         if (!masterPiece) {
-            newPieces.push(piece);
+            const newPiece = new Pieces({ ...uniquePiecesData[i] });
+
+            const savedPiece = await newPiece.save();
+
+            newPieces.push(savedPiece);
         } else {
             setData.pieces.push(masterPiece._id);
         }
-    });
-
-    // Push all new pieces into the Master Pieces collection....
-    await Pieces.insertMany(newPieces);
+    }
 
     // ... and then find each of those pieces and grab the new mongoDb document ID...
     for (let i = 0; i < newPieces.length; i++) {
-        const target = await Pieces.find({elementId: newPieces[i].elementId});
+        const target = await Pieces.find({ rebrickPartNum: newPieces[i].rebrickPartNum });
 
         // ...and push it into setData's piece collection
         setData.pieces.push(target[0]._id);

@@ -34,8 +34,9 @@ const Pieces = mongoose.model(
             trim:     true
         },
         price: {
-            type: String,
-            trim: true
+            type:     String,
+            required: true,
+            trim:     true
         }
     })
 );

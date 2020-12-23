@@ -14,6 +14,12 @@ const UserPieces = db.userPieces;
 
 const RebrickSetPiecesUrl = template.parse('/sets/{setNumber}/parts{?key}');
 
+const attachOne = setNumber => {
+    if (setNumber.includes('-1')) return setNumber;
+
+    return `${setNumber}-1`;
+};
+
 exports.updateUserSet = async (req, res) => {
     if (!req.params.id) {
         res.status(200).send({ message: "Missing Set Number.", data: [] });
@@ -219,7 +225,61 @@ exports.saveUserSet = async (req, res) => {
         }
 
         // NOW we have a set in Master Set, so let's grab it
-        masterSet = await Sets.findOne({ baseSetNumber: req.body.setNumber });
+        masterSet = await Sets.findOne({ baseSetNumber });
+    }
+
+    const rebrickPieceData = await apiBase.rebrickV3.get(
+        RebrickSetPiecesUrl.expand({
+            key:       process.env.REBRICKABLE_API_KEY,
+            setNumber: attachOne(baseSetNumber)
+        })
+    );
+    const rawRebrickPieces = _.get(rebrickPieceData, 'data.results');
+    const piecesData = [];
+
+    // Grab all pieces from the Master Pieces collection
+    const MasterPieces = await Pieces.find();
+
+    for (let i = 0; i < rawRebrickPieces.length; i++) {
+        const rebrickPartNum = _.get(rawRebrickPieces[i], 'part.part_num', '');
+        const masterPiece = MasterPieces.find(piece => piece.rebrickPartNum === rebrickPartNum);
+
+        piecesData.push({
+            masterPieceId: masterPiece._id,
+            userId:        currentUser._id,
+            count:         _.get(rawRebrickPieces[i], 'quantity', 0) || 0,
+            pricePaid:     0,
+            notes:         ''
+        });
+    }
+
+    // Grab all pieces from the User Pieces collection
+    const userPiecesData = await UserPieces.find({ userId: currentUser._id });
+
+    if (userPiecesData.length) {
+        // Loop thru the pieces data and user pieces collection to either update the piece count
+        // in the user's piece collection, or save the new piece into the user's piece collection
+
+        // THIS CODE IS GENERATING CRAZY DUPLICATES - FIND THE DEFECT AND FIX
+        for (let i = 0; i < piecesData.length; i++) {
+            for (let j = 0; j < userPiecesData.length; j++) {
+                if (piecesData[i].masterPieceId === userPiecesData[j].masterPieceId) {
+                    const count = userPiecesData[j].count + piecesData[i].count;
+
+                    await UserPieces.findByIdAndUpdate(userPiecesData[j]._id, {count});
+                } else {
+                    const newPiece = new UserPieces({ ...piecesData[i] });
+
+                    await newPiece.save();
+                }
+            }
+        }
+    } else {
+        for (let i = 0; i < piecesData.length; i++) {
+            const newPiece = new UserPieces({ ...piecesData[i] });
+
+            await newPiece.save();
+        }
     }
 
     // Construct a simple query where we need both userId AND masterSetId

@@ -97,10 +97,27 @@ exports.addMasterSet = async setNumber => {
         })
     );
     const rawRebrickPieces = _.get(rebrickPieceData, 'data.results');
-    const piecesData = [];
+
+    // Sometimes Rebrickable returns "spares" in the data set. "Spares" are duplicated pieces with a different
+    // quantity count for the same piece (identical part.part_num). Ensure we only enter one of any given piece.
+    const uniqueRebrickPieces = [];
+    for (let i = 0; i < rawRebrickPieces.length; i++) {
+        const occurances = rawRebrickPieces.filter(piece => piece.part.part_num === rawRebrickPieces[i].part.part_num);
+
+        if (occurances.length === 1) {
+            uniqueRebrickPieces.push(rawRebrickPieces[i]);
+        } else {
+            const isADupe = uniqueRebrickPieces.find(piece => piece.part.part_num === rawRebrickPieces[i].part.part_num);
+
+            if (!isADupe) {
+                uniqueRebrickPieces.push(rawRebrickPieces[i]);
+            }
+        }
+    }
 
     // Step 4.5: Normalize data from Rebrickable into a simple, happy object
-    rawRebrickPieces.forEach(piece => {
+    const piecesData = [];
+    uniqueRebrickPieces.forEach(piece => {
         piecesData.push({
             elementId:      _.get(piece, 'element_id', 'Unknown') || 'Unknown',
             name:           _.get(piece, 'part.name', ''),
@@ -112,15 +129,6 @@ exports.addMasterSet = async setNumber => {
         });
     });
 
-    // Remove any duplicates
-    const uniquePiecesData = piecesData.reduce((unique, o) => {
-        if (!unique.some(obj => obj.rebrickPartNum === o.rebrickPartNum)) {
-          unique.push(o);
-        }
-
-        return unique;
-    },[]);
-
     // Grab all pieces from the Master Pieces collection
     const MasterPieces = await Pieces.find();
     const newPieces = [];
@@ -128,11 +136,11 @@ exports.addMasterSet = async setNumber => {
     // Loop thru each piece belonging to the Set, if piece does not exist in Master Pieces collection
     // save it immediately, otherwise grab the mongoDb document ID and push that
     // into the setData.pieces collection.
-    for (let i = 0; i < uniquePiecesData.length; i++) {
-        const masterPiece = MasterPieces.find(item => item.rebrickPartNum === uniquePiecesData[i].rebrickPartNum);
+    for (let i = 0; i < piecesData.length; i++) {
+        const masterPiece = MasterPieces.find(item => item.rebrickPartNum === piecesData[i].rebrickPartNum);
 
         if (!masterPiece) {
-            const newPiece = new Pieces({ ...uniquePiecesData[i] });
+            const newPiece = new Pieces({ ...piecesData[i] });
 
             const savedPiece = await newPiece.save();
 

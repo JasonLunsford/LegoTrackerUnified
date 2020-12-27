@@ -235,30 +235,50 @@ exports.saveUserSet = async (req, res) => {
         })
     );
     const rawRebrickPieces = _.get(rebrickPieceData, 'data.results');
+
+    // Sometimes Rebrickable returns "spares" in the data set. "Spares" are duplicated pieces with a different
+    // quantity count for the same piece (identical part.part_num). Because we aren't tracking "spares" let's
+    // just add them together and use the otherwise identical piece data in our uniqueRebrickPieces collection.
+    const uniqueRebrickPieces = [];
+    for (let i = 0; i < rawRebrickPieces.length; i++) {
+        const occurances = rawRebrickPieces.filter(piece => piece.part.part_num === rawRebrickPieces[i].part.part_num);
+
+        if (occurances.length === 1) {
+            uniqueRebrickPieces.push(rawRebrickPieces[i]);
+        } else {
+            const isADupe = uniqueRebrickPieces.find(piece => piece.part.part_num === rawRebrickPieces[i].part.part_num);
+
+            if (!isADupe) {
+                let quantity = 0;
+
+                occurances.forEach(occurance => {
+                    quantity = quantity + occurance.quantity;
+                });
+
+                occurances[0].quantity = quantity;
+
+                uniqueRebrickPieces.push(occurances[0]);
+            }
+        }
+    }
+
     const piecesData = [];
 
     // Grab all pieces from the Master Pieces collection
     const MasterPieces = await Pieces.find();
 
-    for (let i = 0; i < rawRebrickPieces.length; i++) {
-        const rebrickPartNum = _.get(rawRebrickPieces[i], 'part.part_num', '');
+    for (let i = 0; i < uniqueRebrickPieces.length; i++) {
+        const rebrickPartNum = _.get(uniqueRebrickPieces[i], 'part.part_num', '');
         const masterPiece = MasterPieces.find(piece => piece.rebrickPartNum === rebrickPartNum);
 
         piecesData.push({
             masterPieceId: masterPiece._id,
             userId:        currentUser._id,
-            count:         _.get(rawRebrickPieces[i], 'quantity', 0) || 0,
+            count:         _.get(uniqueRebrickPieces[i], 'quantity', 0) || 0,
             pricePaid:     '0',
             notes:         ''
         });
     }
-
-    // const lookup = rawRebrickPieces.reduce((a, e) => {
-    //   a[e.part.part_num] = ++a[e.part.part_num] || 0;
-    //   return a;
-    // }, {});
-
-    // console.log(rawRebrickPieces.filter(e => lookup[e.part.part_num]));
 
     // Grab all pieces from the User Pieces collection
     const userPiecesData = await UserPieces.find({ userId: currentUser._id });

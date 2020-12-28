@@ -18,7 +18,8 @@ exports.singlePiece = async (req, res) => {
     const query = {
         $or : [
             { boid: req.params.id },
-            { elementId: req.params.id }
+            { elementId: req.params.id },
+            { rebrickPartNum: req.params.id }
         ]
     };
 

@@ -9,7 +9,7 @@ const Pieces = db.pieces;
 
 const BrickOwlCatalogUrl = template.parse('/catalog/{action}{?key,type,brand,id,boid,boids}');
 const RebrickSetsUrl = template.parse('/sets/{setNumber}/{?key}');
-const RebrickSetPiecesUrl = template.parse('/sets/{setNumber}/parts{?key}');
+const RebrickSetPiecesUrl = template.parse('/sets/{setNumber}/parts{?key,page}');
 const RebrickThemesUrl = template.parse('/themes/{id}/{?key}');
 
 const attachOne = setNumber => {
@@ -90,32 +90,63 @@ exports.addMasterSet = async setNumber => {
     setData.theme = _.get(rebrickThemeData, 'data.name');
 
     // Step 4: Get the piece data for the Set
-    const rebrickPieceData = await apiBase.rebrickV3.get(
-        RebrickSetPiecesUrl.expand({
-            key:       process.env.REBRICKABLE_API_KEY,
-            setNumber: attachOne(setNumber)
-        })
-    );
-    const rawRebrickPieces = _.get(rebrickPieceData, 'data.results');
+    // Collection we'll pour results into as each recursive step is completed
+    let allRebrickPieces = [];
+
+    // Delay method to introduce an arbitrary delay into an async recursive function
+    const delay = t => {
+        return new Promise(resolve => {
+            setTimeout(resolve, t);
+        });
+    }
+
+    // Recursively collect all pieces associated with a given set
+    const getRebrickPieces = async (page = 1) => {
+        const rebrickPieceData = await apiBase.rebrickV3.get(
+            RebrickSetPiecesUrl.expand({
+                key:       process.env.REBRICKABLE_API_KEY,
+                setNumber: attachOne(setNumber),
+                page
+            })
+        );
+
+        const rawRebrickPieces = _.get(rebrickPieceData, 'data.results', []) || [];
+        allRebrickPieces = [...allRebrickPieces, ...rawRebrickPieces];
+
+        const nextPageLink = _.get(rebrickPieceData, 'data.next');
+
+        if (!nextPageLink) {
+            return;
+        }
+
+        page++;
+
+        await delay(5000);
+
+        return await getRebrickPieces(page);
+    }
+
+    await getRebrickPieces();
 
     // Sometimes Rebrickable returns "spares" in the data set. "Spares" are duplicated pieces with a different
     // quantity count for the same piece (identical part.part_num). Ensure we only enter one of any given piece.
     const uniqueRebrickPieces = [];
-    for (let i = 0; i < rawRebrickPieces.length; i++) {
-        const occurances = rawRebrickPieces.filter(piece => piece.part.part_num === rawRebrickPieces[i].part.part_num);
+    for (let i = 0; i < allRebrickPieces.length; i++) {
+        const occurances = allRebrickPieces.filter(piece => piece.part.part_num === allRebrickPieces[i].part.part_num);
 
         if (occurances.length === 1) {
-            uniqueRebrickPieces.push(rawRebrickPieces[i]);
+            uniqueRebrickPieces.push(allRebrickPieces[i]);
         } else {
-            const isADupe = uniqueRebrickPieces.find(piece => piece.part.part_num === rawRebrickPieces[i].part.part_num);
+            const isADupe = uniqueRebrickPieces.find(piece => piece.part.part_num === allRebrickPieces[i].part.part_num);
 
             if (!isADupe) {
-                uniqueRebrickPieces.push(rawRebrickPieces[i]);
+                uniqueRebrickPieces.push(allRebrickPieces[i]);
             }
         }
     }
 
     // Step 4.5: Normalize data from Rebrickable into a simple, happy object
+    // Note: sometimes elementId is missing, so sub it with 'Unknown'
     const piecesData = [];
     uniqueRebrickPieces.forEach(piece => {
         piecesData.push({
@@ -131,7 +162,6 @@ exports.addMasterSet = async setNumber => {
 
     // Grab all pieces from the Master Pieces collection
     const MasterPieces = await Pieces.find();
-    const newPieces = [];
 
     // Loop thru each piece belonging to the Set, if piece does not exist in Master Pieces collection
     // save it immediately, otherwise grab the mongoDb document ID and push that
@@ -141,21 +171,14 @@ exports.addMasterSet = async setNumber => {
 
         if (!masterPiece) {
             const newPiece = new Pieces({ ...piecesData[i] });
+            await newPiece.save();
 
-            const savedPiece = await newPiece.save();
+            const savedPiece = await Pieces.findOne({ rebrickPartNum: piecesData[i].rebrickPartNum });
 
-            newPieces.push(savedPiece);
+            setData.pieces.push(savedPiece._id);
         } else {
             setData.pieces.push(masterPiece._id);
         }
-    }
-
-    // ... and then find each of those pieces and grab the new mongoDb document ID...
-    for (let i = 0; i < newPieces.length; i++) {
-        const target = await Pieces.find({ rebrickPartNum: newPieces[i].rebrickPartNum });
-
-        // ...and push it into setData's piece collection
-        setData.pieces.push(target[0]._id);
     }
 
     // instantiate a new set

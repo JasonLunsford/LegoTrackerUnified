@@ -12,7 +12,7 @@ const User = db.user;
 const UserSets = db.userSets;
 const UserPieces = db.userPieces;
 
-const RebrickSetPiecesUrl = template.parse('/sets/{setNumber}/parts{?key}');
+const RebrickSetPiecesUrl = template.parse('/sets/{setNumber}/parts{?key,page}');
 
 const attachOne = setNumber => {
     if (setNumber.includes('-1')) return setNumber;
@@ -228,25 +228,55 @@ exports.saveUserSet = async (req, res) => {
         masterSet = await Sets.findOne({ baseSetNumber });
     }
 
-    const rebrickPieceData = await apiBase.rebrickV3.get(
-        RebrickSetPiecesUrl.expand({
-            key:       process.env.REBRICKABLE_API_KEY,
-            setNumber: attachOne(baseSetNumber)
-        })
-    );
-    const rawRebrickPieces = _.get(rebrickPieceData, 'data.results');
+    // Collection we'll pour results into as each recursive step is completed
+    let allRebrickPieces = [];
+
+    // Delay method to introduce an arbitrary delay into an async recursive function
+    const delay = t => {
+        return new Promise(resolve => {
+            setTimeout(resolve, t);
+        });
+    }
+
+    // Recursively collect all pieces associated with a given set
+    const getRebrickPieces = async (page = 1) => {
+        const rebrickPieceData = await apiBase.rebrickV3.get(
+            RebrickSetPiecesUrl.expand({
+                key:       process.env.REBRICKABLE_API_KEY,
+                setNumber: attachOne(baseSetNumber),
+                page
+            })
+        );
+
+        const rawRebrickPieces = _.get(rebrickPieceData, 'data.results', []) || [];
+        allRebrickPieces = [...allRebrickPieces, ...rawRebrickPieces];
+
+        const nextPageLink = _.get(rebrickPieceData, 'data.next');
+
+        if (!nextPageLink) {
+            return;
+        }
+
+        page++;
+
+        await delay(5000);
+
+        return await getRebrickPieces(page);
+    }
+
+    await getRebrickPieces();
 
     // Sometimes Rebrickable returns "spares" in the data set. "Spares" are duplicated pieces with a different
     // quantity count for the same piece (identical part.part_num). Because we aren't tracking "spares" let's
     // just add them together and use the otherwise identical piece data in our uniqueRebrickPieces collection.
     const uniqueRebrickPieces = [];
-    for (let i = 0; i < rawRebrickPieces.length; i++) {
-        const occurances = rawRebrickPieces.filter(piece => piece.part.part_num === rawRebrickPieces[i].part.part_num);
+    for (let i = 0; i < allRebrickPieces.length; i++) {
+        const occurances = allRebrickPieces.filter(piece => piece.part.part_num === allRebrickPieces[i].part.part_num);
 
         if (occurances.length === 1) {
-            uniqueRebrickPieces.push(rawRebrickPieces[i]);
+            uniqueRebrickPieces.push(allRebrickPieces[i]);
         } else {
-            const isADupe = uniqueRebrickPieces.find(piece => piece.part.part_num === rawRebrickPieces[i].part.part_num);
+            const isADupe = uniqueRebrickPieces.find(piece => piece.part.part_num === allRebrickPieces[i].part.part_num);
 
             if (!isADupe) {
                 let quantity = 0;
@@ -288,7 +318,7 @@ exports.saveUserSet = async (req, res) => {
         // in the user's piece collection
         for (let i = 0; i < piecesData.length; i++) {
             for (let j = 0; j < userPiecesData.length; j++) {
-                if (piecesData[i].masterPieceId === userPiecesData[j].masterPieceId) {
+                if (String(piecesData[i].masterPieceId) === String(userPiecesData[j].masterPieceId)) {
                     const count = userPiecesData[j].count + piecesData[i].count;
 
                     await UserPieces.findByIdAndUpdate(userPiecesData[j]._id, {count});

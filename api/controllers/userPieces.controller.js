@@ -33,18 +33,49 @@ exports.allUserPieces = async (req, res) => {
         });
     });
 
-    const lookup = userPieces.reduce((a, e) => {
-        a[e.masterPieceId] = ++a[e.masterPieceId] || 0;
-        return a;
-    }, {});
-
-    console.log('dups?: ', userPieces.filter(item => lookup[item.masterPieceId]));
-
     res.status(200).send({ data: piecesData });
 };
 
-exports.singleUserPiece = (req, res) => {
+exports.singleUserPiece = async (req, res) => {
+    if (!req.params.id) {
+        res.status(200).send({ message: "Missing Piece Number.", data: [] });
 
+        return;
+    }
+
+    const currentUser = await User.findOne({ accessToken: req.header.accessToken });
+    const userPieces = await UserPieces.find({ userId: currentUser._id });
+
+    const query = {
+        $or : [
+            { boid: req.params.id },
+            { elementId: req.params.id },
+            { rebrickPartNum: req.params.id }
+        ]
+    };
+
+    const masterPieces = await Pieces.find(query);
+
+    if (!masterPieces.length) {
+        res.status(200).send({ message: "Unable to locate piece in Master Pieces collection.", data: [] });
+
+        return;
+    }
+
+    const userPiece = userPieces.find(item => String(item.masterPieceId) === String(masterPieces[0]._id));
+
+    res.status(200).send({ data: {
+        elementId:      masterPieces[0].elementId,
+        name:           masterPieces[0].name,
+        imgUrl:         masterPieces[0].imgUrl,
+        boid:           masterPieces[0].boid,
+        rebrickPartNum: masterPieces[0].rebrickPartNum,
+        color:          masterPieces[0].color,
+        price:          masterPieces[0].price,
+        pricePaid:      userPiece.pricePaid,
+        count:          userPiece.count,
+        notes:          userPiece.notes
+    }});
 };
 
 exports.saveUserPiece = (req, res) => {

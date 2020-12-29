@@ -97,6 +97,25 @@ exports.deleteUserSet = async (req, res) => {
         return;
     }
 
+    // Grab all pieces from the User Pieces collection and the pieces from the master set
+    const userPiecesData = await UserPieces.find({ userId: currentUser._id });
+    const masterSetPieces = masterSet.pieces;
+
+    for (let i = 0; i < userPiecesData.length; i++) {
+        for (let j = 0; j < masterSetPieces.length; j++) {
+            if (String(userPiecesData[i].masterPieceId) === String(masterSetPieces[j].id)) {
+                const allPieceCount = masterSetPieces[j].count + masterSetPieces[j].spareCount;
+                const count = userPiecesData[i].count - allPieceCount;
+
+                if (count <= 0) {
+                    await UserPieces.findByIdAndDelete(userPiecesData[i]._id);
+                } else {
+                    await UserPieces.findByIdAndUpdate(userPiecesData[i]._id, {count});
+                }
+            }
+        }
+    }
+
     await UserSets.findByIdAndDelete(targetSet[0]._id, (err, item) => {
         if (err) {
             res.status(503).send({ message: err });

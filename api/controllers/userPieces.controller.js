@@ -57,12 +57,18 @@ exports.singleUserPiece = async (req, res) => {
     const masterPieces = await Pieces.find(query);
 
     if (!masterPieces.length) {
-        res.status(200).send({ message: "Unable to locate piece in Master Pieces collection.", data: [] });
+        res.status(200).send({ message: "Unable to locate core piece data.", data: [] });
 
         return;
     }
 
     const userPiece = userPieces.find(item => String(item.masterPieceId) === String(masterPieces[0]._id));
+
+    if (!userPiece) {
+        res.status(200).send({ message: "User does not own this piece.", data: [] });
+
+        return;
+    }
 
     res.status(200).send({ data: {
         elementId:      masterPieces[0].elementId,

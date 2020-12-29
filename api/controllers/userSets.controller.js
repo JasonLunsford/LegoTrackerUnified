@@ -245,30 +245,21 @@ exports.saveUserSet = async (req, res) => {
     // Grab all pieces from the User Pieces collection
     const userPiecesData = await UserPieces.find({ userId: currentUser._id });
 
-    if (userPiecesData.length) {
-        // Loop thru the pieces data and user pieces collection to update the piece count
-        // in the user's piece collection
-        for (let i = 0; i < piecesData.length; i++) {
+    // Loop thru piecesData to determine whether the User Pieces collection contains the piece
+    // and if so revise the count, otherwise save the piece.
+    for (let i = 0; i < piecesData.length; i++) {
+        const targetPiece = await UserPieces.findOne({ masterPieceId: piecesData[i].masterPieceId });
+
+        if (targetPiece) {
             for (let j = 0; j < userPiecesData.length; j++) {
+                // Again, forcing the ID into a String for comparison purposes
                 if (String(piecesData[i].masterPieceId) === String(userPiecesData[j].masterPieceId)) {
                     const count = userPiecesData[j].count + piecesData[i].count;
 
                     await UserPieces.findByIdAndUpdate(userPiecesData[j]._id, {count});
                 }
             }
-        }
-
-        for (let i = 0; i < piecesData.length; i++) {
-            const targetPiece = await UserPieces.findOne({ masterPieceId: piecesData[i].masterPieceId });
-
-            if (!targetPiece) {
-                const newPiece = new UserPieces({ ...piecesData[i] });
-
-                await newPiece.save();
-            }
-        }
-    } else {
-        for (let i = 0; i < piecesData.length; i++) {
+        } else {
             const newPiece = new UserPieces({ ...piecesData[i] });
 
             await newPiece.save();

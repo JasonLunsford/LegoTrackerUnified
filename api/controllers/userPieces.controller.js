@@ -62,26 +62,38 @@ exports.singleUserPiece = async (req, res) => {
         return;
     }
 
-    const userPiece = userPieces.find(item => String(item.masterPieceId) === String(masterPieces[0]._id));
+    const data = [];
+    let userPieceFound = false;
+    // const userPiece = userPieces.find(item => String(item.masterPieceId) === String(masterPieces[0]._id));
 
-    if (!userPiece) {
+    userPieces.forEach(userPiece => {
+        masterPieces.forEach(masterPiece => {
+            if (String(userPiece.masterPieceId) === String(masterPiece._id)) {
+                userPieceFound = true;
+
+                data.push({
+                    elementId:      masterPiece.elementId,
+                    name:           masterPiece.name,
+                    imgUrl:         masterPiece.imgUrl,
+                    boid:           masterPiece.boid,
+                    rebrickPartNum: masterPiece.rebrickPartNum,
+                    color:          masterPiece.color,
+                    price:          masterPiece.price,
+                    pricePaid:      userPiece.pricePaid,
+                    count:          userPiece.count,
+                    notes:          userPiece.notes
+                })
+            }
+        });
+    });
+
+    if (!userPieceFound) {
         res.status(200).send({ message: "User does not own this piece.", data: [] });
 
         return;
     }
 
-    res.status(200).send({ data: {
-        elementId:      masterPieces[0].elementId,
-        name:           masterPieces[0].name,
-        imgUrl:         masterPieces[0].imgUrl,
-        boid:           masterPieces[0].boid,
-        rebrickPartNum: masterPieces[0].rebrickPartNum,
-        color:          masterPieces[0].color,
-        price:          masterPieces[0].price,
-        pricePaid:      userPiece.pricePaid,
-        count:          userPiece.count,
-        notes:          userPiece.notes
-    }});
+    res.status(200).send({ data });
 };
 
 exports.saveUserPiece = (req, res) => {

@@ -133,8 +133,19 @@ exports.addMasterSet = async setNumber => {
     const piecesData = [];
     const pieceCounts = [];
     for (let i = 0; i < allRebrickPieces.length; i++) {
+        // Prefer to use elementId because this allows us to store different colors of the same
+        // piece, as determined by Rebrickable
+        const elementId = _.get(allRebrickPieces[i], 'element_id', 'Unknown') || 'Unknown';
+
         // Lets determine whether this piece is unique by finding all occurances of it
-        const occurances = allRebrickPieces.filter(piece => piece.part.part_num === allRebrickPieces[i].part.part_num);
+        let occurances, uniqueId;
+        if (elementId === 'Unknown') {
+            occurances = allRebrickPieces.filter(piece => piece.part.part_num === allRebrickPieces[i].part.part_num);
+            uniqueId = allRebrickPieces[i].part.part_num;
+        } else {
+            occurances = allRebrickPieces.filter(piece => piece.element_id === elementId);
+            uniqueId = elementId;
+        }
 
         // Looks like the piece only occurs one time, so...
         if (occurances.length === 1) {
@@ -151,15 +162,20 @@ exports.addMasterSet = async setNumber => {
 
             // Count of this particular piece occurance
             pieceCounts.push({
-                rebrickPartNum: _.get(allRebrickPieces[i], 'part.part_num', ''),
-                count:          _.get(allRebrickPieces[i], 'quantity', 0),
-                spareCount:     0
+                uniqueId,
+                count:      _.get(allRebrickPieces[i], 'quantity', 0),
+                spareCount: 0
             });
         } else {
             // Have we already injected this version of the piece into piecesData?
-            const isADupe = piecesData.find(piece => piece.rebrickPartNum === allRebrickPieces[i].part.part_num);
-            // Have we already injected piece count data into piecesCount?
-            const isADupeInPieceCounts = pieceCounts.find(piece => piece.rebrickPartNum === allRebrickPieces[i].part.part_num);
+            let isADupe, isADupeInPieceCounts;
+            if (elementId === 'Unknown') {
+                isADupe = piecesData.find(piece => piece.rebrickPartNum === allRebrickPieces[i].part.part_num);
+                isADupeInPieceCounts = pieceCounts.find(piece => piece.uniqueId === allRebrickPieces[i].part.part_num);
+            } else {
+                isADupe = piecesData.find(piece => piece.elementId === elementId);
+                isADupeInPieceCounts = pieceCounts.find(piece => piece.uniqueId === elementId);
+            }
 
             if (!isADupe) {
                 piecesData.push({
@@ -175,9 +191,9 @@ exports.addMasterSet = async setNumber => {
 
             if (!isADupeInPieceCounts) {
                 let entry = {
-                    rebrickPartNum: _.get(allRebrickPieces[i], 'part.part_num', ''),
-                    count:          0,
-                    spareCount:     0
+                    uniqueId,
+                    count:      0,
+                    spareCount: 0
                 };
 
                 // Making a huge assumption here...that occurances only has two members
@@ -202,15 +218,27 @@ exports.addMasterSet = async setNumber => {
     // save it immediately, otherwise grab the mongoDb document ID and push that
     // into the setData.pieces collection.
     for (let i = 0; i < piecesData.length; i++) {
-        const masterPiece = MasterPieces.find(item => item.rebrickPartNum === piecesData[i].rebrickPartNum);
-        const counts = pieceCounts.find(item => item.rebrickPartNum === piecesData[i].rebrickPartNum) || {};
+        let masterPiece, counts;
+
+        if (piecesData[i].elementId === 'Unknown') {
+            masterPiece = MasterPieces.find(item => item.rebrickPartNum === piecesData[i].rebrickPartNum);
+            counts = pieceCounts.find(item => item.uniqueId === piecesData[i].rebrickPartNum) || {};
+        } else {
+            masterPiece = MasterPieces.find(item => item.elementId === piecesData[i].elementId);
+            counts = pieceCounts.find(item => item.uniqueId === piecesData[i].elementId) || {};
+        }
 
         // No masterPiece? Then save it, find it, and use that document ID
         if (!masterPiece) {
             const newPiece = new Pieces({ ...piecesData[i] });
             await newPiece.save();
 
-            const savedPiece = await Pieces.findOne({ rebrickPartNum: piecesData[i].rebrickPartNum });
+            let savedPiece;
+            if (piecesData[i].elementId === 'Unknown') {
+                savedPiece = await Pieces.findOne({ rebrickPartNum: piecesData[i].rebrickPartNum });
+            } else {
+                savedPiece = await Pieces.findOne({ elementId: piecesData[i].elementId });
+            }
 
             setData.pieces.push({
                 id: savedPiece._id,

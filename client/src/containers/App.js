@@ -5,7 +5,7 @@ const App = ({
 }) => {
     return (
         <div className="App">
-          LEGO Tracker
+          LEGO Tracker Hot Reload Demo
         </div>
     );
 };

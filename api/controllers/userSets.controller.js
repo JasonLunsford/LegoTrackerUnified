@@ -228,83 +228,15 @@ exports.saveUserSet = async (req, res) => {
         masterSet = await Sets.findOne({ baseSetNumber });
     }
 
-    // Collection we'll pour results into as each recursive step is completed
-    let allRebrickPieces = [];
-
-    // Delay method to introduce an arbitrary delay into an async recursive function
-    const delay = t => {
-        return new Promise(resolve => {
-            setTimeout(resolve, t);
-        });
-    }
-
-    // Recursively collect all pieces associated with a given set
-    const getRebrickPieces = async (page = 1) => {
-        const rebrickPieceData = await apiBase.rebrickV3.get(
-            RebrickSetPiecesUrl.expand({
-                key:       process.env.REBRICKABLE_API_KEY,
-                setNumber: attachOne(baseSetNumber),
-                page
-            })
-        );
-
-        const rawRebrickPieces = _.get(rebrickPieceData, 'data.results', []) || [];
-        allRebrickPieces = [...allRebrickPieces, ...rawRebrickPieces];
-
-        const nextPageLink = _.get(rebrickPieceData, 'data.next');
-
-        if (!nextPageLink) {
-            return;
-        }
-
-        page++;
-
-        await delay(5000);
-
-        return await getRebrickPieces(page);
-    }
-
-    await getRebrickPieces();
-
-    // Sometimes Rebrickable returns "spares" in the data set. "Spares" are duplicated pieces with a different
-    // quantity count for the same piece (identical part.part_num). Because we aren't tracking "spares" let's
-    // just add them together and use the otherwise identical piece data in our uniqueRebrickPieces collection.
-    const uniqueRebrickPieces = [];
-    for (let i = 0; i < allRebrickPieces.length; i++) {
-        const occurances = allRebrickPieces.filter(piece => piece.part.part_num === allRebrickPieces[i].part.part_num);
-
-        if (occurances.length === 1) {
-            uniqueRebrickPieces.push(allRebrickPieces[i]);
-        } else {
-            const isADupe = uniqueRebrickPieces.find(piece => piece.part.part_num === allRebrickPieces[i].part.part_num);
-
-            if (!isADupe) {
-                let quantity = 0;
-
-                occurances.forEach(occurance => {
-                    quantity = quantity + occurance.quantity;
-                });
-
-                occurances[0].quantity = quantity;
-
-                uniqueRebrickPieces.push(occurances[0]);
-            }
-        }
-    }
-
     const piecesData = [];
 
-    // Grab all pieces from the Master Pieces collection
-    const MasterPieces = await Pieces.find();
-
-    for (let i = 0; i < uniqueRebrickPieces.length; i++) {
-        const rebrickPartNum = _.get(uniqueRebrickPieces[i], 'part.part_num', '');
-        const masterPiece = MasterPieces.find(piece => piece.rebrickPartNum === rebrickPartNum);
+    for (let i = 0; i < masterSet.pieces.length; i++) {
+        const totalCount = masterSet.pieces[i].count + masterSet.pieces[i].spareCount;
 
         piecesData.push({
-            masterPieceId: masterPiece._id,
+            masterPieceId: masterSet.pieces[i].id,
             userId:        currentUser._id,
-            count:         _.get(uniqueRebrickPieces[i], 'quantity', 0) || 0,
+            count:         totalCount,
             pricePaid:     '0',
             notes:         ''
         });

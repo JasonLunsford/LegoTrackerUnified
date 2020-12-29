@@ -1,5 +1,21 @@
 const mongoose = require('mongoose');
 
+const PieceSchema = new mongoose.Schema({
+    id: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Pieces"
+    },
+    count: {
+        type:     Number,
+        trim:     true
+    },
+    spareCount: {
+        type:     Number,
+        trim:     true,
+        default:  0
+    }
+})
+
 const Sets = mongoose.model(
     "Sets",
     new mongoose.Schema({
@@ -28,12 +44,7 @@ const Sets = mongoose.model(
             required: true,
             trim:     true
         },
-        pieces: [
-            {
-                type: mongoose.Schema.Types.ObjectId,
-                ref: "Pieces"
-            }
-        ],
+        pieces: [PieceSchema],
         price: {
             type:     String,
             required: true,

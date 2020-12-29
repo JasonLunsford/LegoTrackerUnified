@@ -121,6 +121,7 @@ exports.addMasterSet = async setNumber => {
 
         page++;
 
+        // Wait 5 seconds
         await delay(5000);
 
         return await getRebrickPieces(page);
@@ -128,37 +129,71 @@ exports.addMasterSet = async setNumber => {
 
     await getRebrickPieces();
 
-    // Sometimes Rebrickable returns "spares" in the data set. "Spares" are duplicated pieces with a different
-    // quantity count for the same piece (identical part.part_num). Ensure we only enter one of any given piece.
-    const uniqueRebrickPieces = [];
+    // Loop thru the allRebrickPieces collection,normalize data and ensure uniqueness
+    const piecesData = [];
+    const pieceCounts = [];
     for (let i = 0; i < allRebrickPieces.length; i++) {
+        // Lets determine whether this piece is unique by finding all occurances of it
         const occurances = allRebrickPieces.filter(piece => piece.part.part_num === allRebrickPieces[i].part.part_num);
 
+        // Looks like the piece only occurs one time, so...
         if (occurances.length === 1) {
-            uniqueRebrickPieces.push(allRebrickPieces[i]);
+            // Normalized piece data
+            piecesData.push({
+                elementId:      _.get(allRebrickPieces[i], 'element_id', 'Unknown') || 'Unknown',
+                name:           _.get(allRebrickPieces[i], 'part.name', ''),
+                imgUrl:         _.get(allRebrickPieces[i], 'part.part_img_url', ''),
+                boid:           _.get(allRebrickPieces[i], 'part.external_ids.BrickOwl[0]', ''),
+                color:          _.get(allRebrickPieces[i], 'color.name', ''),
+                rebrickPartNum: _.get(allRebrickPieces[i], 'part.part_num', ''),
+                price:          '0'
+            });
+
+            // Count of this particular piece occurance
+            pieceCounts.push({
+                rebrickPartNum: _.get(allRebrickPieces[i], 'part.part_num', ''),
+                count:          _.get(allRebrickPieces[i], 'quantity', 0),
+                spareCount:     0
+            });
         } else {
-            const isADupe = uniqueRebrickPieces.find(piece => piece.part.part_num === allRebrickPieces[i].part.part_num);
+            // Have we already injected this version of the piece into piecesData?
+            const isADupe = piecesData.find(piece => piece.rebrickPartNum === allRebrickPieces[i].part.part_num);
+            // Have we already injected piece count data into piecesCount?
+            const isADupeInPieceCounts = pieceCounts.find(piece => piece.rebrickPartNum === allRebrickPieces[i].part.part_num);
 
             if (!isADupe) {
-                uniqueRebrickPieces.push(allRebrickPieces[i]);
+                piecesData.push({
+                    elementId:      _.get(allRebrickPieces[i], 'element_id', 'Unknown') || 'Unknown',
+                    name:           _.get(allRebrickPieces[i], 'part.name', ''),
+                    imgUrl:         _.get(allRebrickPieces[i], 'part.part_img_url', ''),
+                    boid:           _.get(allRebrickPieces[i], 'part.external_ids.BrickOwl[0]', ''),
+                    color:          _.get(allRebrickPieces[i], 'color.name', ''),
+                    rebrickPartNum: _.get(allRebrickPieces[i], 'part.part_num', ''),
+                    price:          '0'
+                });
+            }
+
+            if (!isADupeInPieceCounts) {
+                let entry = {
+                    rebrickPartNum: _.get(allRebrickPieces[i], 'part.part_num', ''),
+                    count:          0,
+                    spareCount:     0
+                };
+
+                // Making a huge assumption here...that occurances only has two members
+                // one for the "spare" and one for the regular version (of the piece)
+                occurances.forEach(occurance => {
+                    if (occurance.is_spare) {
+                        entry.spareCount = occurance.quantity;
+                    } else {
+                        entry.count = occurance.quantity;
+                    }
+                });
+
+                pieceCounts.push(entry);
             }
         }
     }
-
-    // Step 4.5: Normalize data from Rebrickable into a simple, happy object
-    // Note: sometimes elementId is missing, so sub it with 'Unknown'
-    const piecesData = [];
-    uniqueRebrickPieces.forEach(piece => {
-        piecesData.push({
-            elementId:      _.get(piece, 'element_id', 'Unknown') || 'Unknown',
-            name:           _.get(piece, 'part.name', ''),
-            imgUrl:         _.get(piece, 'part.part_img_url', ''),
-            boid:           _.get(piece, 'part.external_ids.BrickOwl[0]', ''),
-            color:          _.get(piece, 'color.name', ''),
-            rebrickPartNum: _.get(piece, 'part.part_num', ''),
-            price:          '0'
-        });
-    });
 
     // Grab all pieces from the Master Pieces collection
     const MasterPieces = await Pieces.find();
@@ -168,16 +203,26 @@ exports.addMasterSet = async setNumber => {
     // into the setData.pieces collection.
     for (let i = 0; i < piecesData.length; i++) {
         const masterPiece = MasterPieces.find(item => item.rebrickPartNum === piecesData[i].rebrickPartNum);
+        const counts = pieceCounts.find(item => item.rebrickPartNum === piecesData[i].rebrickPartNum) || {};
 
+        // No masterPiece? Then save it, find it, and use that document ID
         if (!masterPiece) {
             const newPiece = new Pieces({ ...piecesData[i] });
             await newPiece.save();
 
             const savedPiece = await Pieces.findOne({ rebrickPartNum: piecesData[i].rebrickPartNum });
 
-            setData.pieces.push(savedPiece._id);
+            setData.pieces.push({
+                id: savedPiece._id,
+                count: counts.count,
+                spareCount: counts.spareCount
+            });
         } else {
-            setData.pieces.push(masterPiece._id);
+            setData.pieces.push({
+                id: masterPiece._id,
+                count: counts.count,
+                spareCount: counts.spareCount
+            });
         }
     }
 

@@ -129,32 +129,26 @@ exports.deleteUserSet = async (req, res) => {
 
 exports.allUserSets = async (req, res) => {
     const currentUser = await User.findOne({ accessToken: req.header.accessToken });
-    const userSets = await UserSets.find({userId: currentUser._id });
-    const masterSets = await Sets.find();
+    const userSets = await UserSets.find({ userId: currentUser._id });
 
     const setsData = [];
 
-    // This is a very expensive way to go about merging data from Master Sets and User Sets.
-    // Note to self: figure out a cheaper way to do this
-    userSets.forEach(userSet => {
-        masterSets.forEach(masterSet => {
-            // Need to coerce these props into strings so we can evaluate them properly
-            if (String(userSet.masterSetId) === String(masterSet._id)) {
-                setsData.push({
-                    baseSetNumber: masterSet.baseSetNumber,
-                    imgUrl:        masterSet.imgUrl,
-                    name:          masterSet.name,
-                    pieceCount:    masterSet.pieceCount,
-                    pieces:        masterSet.pieces,
-                    price:         masterSet.price,
-                    pricePaid:     userSet.pricePaid,
-                    theme:         masterSet.theme,
-                    year:          masterSet.year,
-                    notes:         userSet.notes
-                });
-            }
+    for (let i = 0; i < userSets.length; i++) {
+        const masterSet = await Sets.findOne({ _id: userSets[i].masterSetId });
+
+        setsData.push({
+            baseSetNumber: masterSet.baseSetNumber,
+            imgUrl:        masterSet.imgUrl,
+            name:          masterSet.name,
+            pieceCount:    masterSet.pieceCount,
+            pieces:        masterSet.pieces,
+            price:         masterSet.price,
+            pricePaid:     userSets[i].pricePaid,
+            theme:         masterSet.theme,
+            year:          masterSet.year,
+            notes:         userSets[i].notes
         });
-    });
+    }
 
     res.status(200).send({ data: setsData });
 };

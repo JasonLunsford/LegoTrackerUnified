@@ -7,31 +7,25 @@ const User = db.user;
 exports.allUserPieces = async (req, res) => {
     const currentUser = await User.findOne({ accessToken: req.header.accessToken });
     const userPieces = await UserPieces.find({ userId: currentUser._id });
-    const masterPieces = await Pieces.find();
 
     const piecesData = [];
 
-    // This is a very expensive way to go about merging data from Master Pieces and User Pieces.
-    // Note to self: figure out a cheaper way to do this
-    userPieces.forEach(userPiece => {
-        masterPieces.forEach(masterPiece => {
-            // Need to coerce these props into strings so we can evaluate them properly
-            if (String(userPiece.masterPieceId) === String(masterPiece._id)) {
-                piecesData.push({
-                    elementId:      masterPiece.elementId,
-                    name:           masterPiece.name,
-                    imgUrl:         masterPiece.imgUrl,
-                    boid:           masterPiece.boid,
-                    rebrickPartNum: masterPiece.rebrickPartNum,
-                    color:          masterPiece.color,
-                    price:          masterPiece.price,
-                    pricePaid:      userPiece.pricePaid,
-                    count:          userPiece.count,
-                    notes:          userPiece.notes
-                });
-            }
+    for (let i = 0; i < userPieces.length; i++) {
+        const masterPiece = await Pieces.findOne({ _id: userPieces[i].masterPieceId });
+
+        piecesData.push({
+            elementId:      masterPiece.elementId,
+            name:           masterPiece.name,
+            imgUrl:         masterPiece.imgUrl,
+            boid:           masterPiece.boid,
+            rebrickPartNum: masterPiece.rebrickPartNum,
+            color:          masterPiece.color,
+            price:          masterPiece.price,
+            pricePaid:      userPieces[i].pricePaid,
+            count:          userPieces[i].count,
+            notes:          userPieces[i].notes
         });
-    });
+    }
 
     res.status(200).send({ data: piecesData });
 };
@@ -64,7 +58,6 @@ exports.singleUserPiece = async (req, res) => {
 
     const data = [];
     let userPieceFound = false;
-    // const userPiece = userPieces.find(item => String(item.masterPieceId) === String(masterPieces[0]._id));
 
     userPieces.forEach(userPiece => {
         masterPieces.forEach(masterPiece => {

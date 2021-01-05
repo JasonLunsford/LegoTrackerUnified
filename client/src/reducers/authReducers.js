@@ -1,18 +1,24 @@
 import {
-    SET_USER
+    IS_SIGNED_IN,
+    IS_SIGNED_OUT
 } from '../actions/actionTypes';
 
 const initialState = {
-    user: {}
+    signedIn: false
 };
 
 // eslint-disable-next-line
 export default (state = initialState, action) => {
     switch (action.type) {
-        case SET_USER:
+        case IS_SIGNED_IN:
             return {
                 ...state,
-                user: {...action.payload}
+                signedIn: true
+            };
+        case IS_SIGNED_OUT:
+            return {
+                ...state,
+                signedIn: false
             };
         default:
             return state;
